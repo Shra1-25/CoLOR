@@ -1,4 +1,4 @@
-# CoLOR
+# Open-Set Domain Adaptation Under Background Shift
 
 Official implementation of **"Open-Set Domain Adaptation Under Background Distribution Shift: Challenges and A Provably Efficient Solution"** (TMLR 2025).
 
