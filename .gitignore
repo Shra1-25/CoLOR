@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# Hydra / experiment outputs
+outputs/
+multirun/
+logs/
+wandb/
+saved_models/
+pretrained_models/
+
+# Dataset splits (download via `python download_splits.py`)
+data_splits/
+
+# Raw datasets and feature caches
+data/
+*.pth
+*.tar.gz
+*.npy
+*.pkl
+*.pkl*
+
+# Plots / artifacts
+plots/
+*.png
+*.jpg
+*.jpeg
+*.JPEG
+*.pdf
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Hugging Face cache
+.cache/

@@ -1,0 +1,12 @@
+# @package _group_
+# Wandb logger configuration.
+# Public users: set entity=<your-wandb-entity> project=<your-wandb-project> on the
+# command line, or run with WANDB_MODE=disabled / offline=true to skip uploading.
+_target_: pytorch_lightning.loggers.wandb.WandbLogger
+project: "CoLOR"
+entity: null
+save_dir: "."
+offline: True
+log_model: False
+group: ""
+tags: null

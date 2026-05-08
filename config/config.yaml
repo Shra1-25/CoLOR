@@ -1,0 +1,68 @@
+defaults:
+  - trainer: default.yaml
+  - datamodule: random_split_module.yaml
+  - models: precision_at_recall.yaml
+  - logger: wandb.yaml
+  - hydra: default.yaml
+  - _self_
+
+# Repository root and storage locations.
+# Override on the command line, e.g.: work_dir=/path/to/CoLOR data_dir=/path/to/datasets
+work_dir: ${hydra:runtime.cwd}
+data_dir: ${work_dir}/data
+log_dir: ${work_dir}/${log_loc}
+output_dir: ${data_dir}/outputs/
+pretrained_model_dir: ${work_dir}/pretrained_models/
+save_model_path: ${work_dir}/saved_models/
+splits_dir: ${work_dir}/data_splits
+device: "cuda"
+pretrained_model_path: ${pretrained_model_dir}
+
+# path to folder with data
+data_loc: data
+log_loc: logs
+
+# Dataset / shift configuration
+seed: 42
+dataset: "cifar100"           # one of: cifar100, amazon_reviews, sun397
+arch: "Resnet18"
+num_source_classes: 85
+fraction_ood_class: 0.15
+train_fraction: 0.8
+num_superclasses: 2
+num_ood_class: 1
+batch_size: 200
+mode: 'domain_disc'
+ood_class: 0
+ood_class_ratio: 0.5
+ood_subclass: ''
+no_shift: False
+use_superclass: False
+use_labels: False
+
+# Optimization
+learning_rate: 0.01
+optimizer: "sgd"
+weight_decay: 0.0005
+pretrained: False
+max_epochs: 200
+separate: False
+dual_learning_rate: 2e-2
+target_recall: 0.05
+precision_confidence: 0.95
+target_precision: 0.995
+source_at_val: False
+logit_multiplier: 2.0
+warmup_epochs: 0
+warmup_patience: 20
+constrained_penalty: 1e-2
+clip: 5.0
+
+# SAR-EM
+refit: False
+
+# nnPU (set False for uPU)
+nnPU: True
+
+# target recalls for multi-recall training (CoLOR)
+target_recalls: [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45]
