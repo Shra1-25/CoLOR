@@ -185,13 +185,14 @@ These match the symbols used in the paper's notation. Defaults are in `config/co
 
 ```bibtex
 @article{
-anonymous2025openset,
+chaudhari2026openset,
 title={Open-Set Domain Adaptation Under Background Distribution Shift: Challenges and A Provably Efficient Solution},
-author={Anonymous},
-journal={Submitted to Transactions on Machine Learning Research},
-year={2025},
+author={Shravan S Chaudhari and Yoav Wald and Suchi Saria},
+journal={Transactions on Machine Learning Research},
+issn={2835-8856},
+year={2026},
 url={https://openreview.net/forum?id=uAJDta7VaQ},
-note={Under review}
+note={}
 }
 ```
 
