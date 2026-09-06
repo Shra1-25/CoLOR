@@ -8,6 +8,57 @@ This repository contains the code, configs, and scripts to reproduce the CIFAR-1
 
 ---
 
+## The background-shift trap, in one animation
+
+![Sweeping into the regime of Theorem 1: seven synchronised panels showing the domain discriminator falling below chance while CoLOR clears 0.90](assets/sweep_into_regime.gif)
+
+The linear-Gaussian example of the paper (Definition 2, eq. 2), swept from a regime with no real
+separation into the one Theorem 1 describes. All seven panels stay in sync and every frame is an
+exact max-margin solve:
+
+```
+alpha 30% -> 10%    ||mu|| 0.020 -> 0.130    ||eta|| 0.15 -> 1.00   (N_S=750, N_T=150, d=2000 fixed)
+DD  0.675 -> 0.444          CoLOR  0.903 -> 0.938          gap  0.23 -> 0.494
+```
+
+The obvious novelty detector is a **domain discriminator**: train a classifier to tell training data
+from deployment data, then call the deployment-looking points novel. Under background shift it ends up
+**below chance**, while CoLOR clears **0.90** on the very same draw. Both rules recover essentially the
+same novel-class signal — `<w, eta-hat>` is -0.90 against -0.89 — so the entire difference is the
+background-shift direction, where the discriminator invests **-9.35** against CoLOR's **-5.47**. Forced
+to separate training from deployment by a *full margin*, the cheapest direction the discriminator can
+buy is the one the background shifted in, and that investment lifts *familiar* deployment points above
+the novel ones, inverting the ranking. CoLOR only requires training points to sit on the correct
+**side** (margin 0), so it never buys the extra lean.
+
+### Try it yourself
+
+**[Open the interactive simulator ▸](https://shra1-25.github.io/CoLOR/)**
+
+The same model, solved live in your browser — no install, nothing to run. Drag the background shift
+`||mu||`, the novelty strength `||eta||`, the novel-class share `alpha`, the two sample sizes and the
+model capacity `d`, and both max-margin problems re-solve on every move, alongside the 3D geometry, the
+score distributions, the ROC, the weight decomposition and a regime map of where each rule wins.
+
+The page is a single self-contained HTML file with no build step and no dependencies, served from
+[`docs/`](docs/) via GitHub Pages — clone the repo and open `docs/index.html` in a browser to run
+the same thing offline, or edit it to change the model.
+
+The trick that makes this possible in a browser: every reported quantity depends on the data only
+through each point's two informative coordinates `<x, mu-hat>` and `<x, eta-hat>` plus the Gram matrix
+of the noise orthogonal to `span{mu, eta}`, which is exactly `sigma^2 * Wishart(d-2, I_N)`. So the full
+`d`-dimensional problem is simulated **without approximation** in `O(N^2)` rather than `O(N^2 d)`.
+AUROC is the closed form of Lemma 2, not a sample estimate; it was checked against empirical AUROC on
+200k fresh points (agreeing to 0.0003) and against an explicit `d`-dimensional solve.
+
+> The simulator's slider ranges deliberately run far outside the region where Theorem 2's conditions
+> (8)–(10) hold, so the AUROC gap can be watched opening and closing at both ends. Those conditions need
+> `N_T >= 66,049` with `N_S >= N_T` — a ~142 GB Gram matrix, against 6.5 MB here — so the simulator
+> demonstrates the same phenomenon in a small-`N` corner rather than verifying the bound. Panel 6 draws
+> both corners on one log-log plane.
+
+---
+
 ## Repository layout
 
 ```
@@ -17,6 +68,8 @@ CoLOR/
 ├── environment.yaml             # Conda environment spec
 ├── requirements.txt             # Pip equivalents
 ├── config/                      # Hydra configs (datamodule, models, trainer, logger)
+├── assets/                      # README media (simulation animation)
+├── docs/                        # GitHub Pages site: the interactive simulator (self-contained)
 ├── src/                         # Library code (datamodules, algorithms, utilities)
 ├── models/                      # Backbone NN architectures (Resnet, Densenet, CLIP wrappers, ...)
 └── scripts/                     # Reproduction shell scripts (cifar100, amazon_reviews, sun397)

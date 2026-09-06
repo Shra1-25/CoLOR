@@ -1,0 +1,1584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Interactive linear-Gaussian simulator for the background-shift trap in open-set domain adaptation: a domain discriminator can fall below chance at novel-class detection while CoLOR clears 0.90 on the very same data. Both max-margin rules re-solve live in your browser.">
+<meta name="author" content="Chaudhari, Wald &amp; Saria">
+<link rel="canonical" href="https://shra1-25.github.io/CoLOR/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%AA%A4</text></svg>">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="The Background-Shift Trap">
+<meta property="og:description" content="Interactive linear-Gaussian simulator for the background-shift trap in open-set domain adaptation: a domain discriminator can fall below chance at novel-class detection while CoLOR clears 0.90 on the very same data. Both max-margin rules re-solve live in your browser.">
+<meta property="og:url" content="https://shra1-25.github.io/CoLOR/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="The Background-Shift Trap">
+<meta name="twitter:description" content="Interactive linear-Gaussian simulator for the background-shift trap in open-set domain adaptation: a domain discriminator can fall below chance at novel-class detection while CoLOR clears 0.90 on the very same data. Both max-margin rules re-solve live in your browser.">
+
+<title>The Background-Shift Trap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600&display=swap">
+
+<style>
+/* ============================== tokens ==============================
+   Light palette lives on bare :root. Dark redefines ONLY tokens, twice:
+   once for OS-dark (guarded so an explicit light stamp wins) and once
+   for the explicit dark stamp.                                        */
+:root {
+  color-scheme: light;
+  --ground:      #eef1f4;   /* cool paper, biased toward the blue accent */
+  --panel:       #fbfcfd;
+  --panel-sunk:  #f2f5f8;
+  --ink:         #0d1117;
+  --ink-2:       #4a5560;
+  --ink-3:       #78838f;
+  --rule:        #dde3e9;
+  --rule-strong: #c4ced8;
+
+  --dd:      #e34948;   /* domain discriminator */
+  --color:   #2a78d6;   /* CoLOR */
+  --known:   #1baf7a;   /* deployment data, known class */
+  --novel:   #eb6834;   /* deployment data, NOVEL class */
+  --train:   #78838f;   /* training data - neutral by design */
+  --dd-wash:    #e3494814;
+  --color-wash: #2a78d614;
+
+  --shadow: 0 1px 2px #0d111710, 0 6px 20px #0d111708;
+  --font-d: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-s: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-m: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #101316;
+    --panel:       #191c20;
+    --panel-sunk:  #14171a;
+    --ink:         #eef2f6;
+    --ink-2:       #a5aeb8;
+    --ink-3:       #6f7a85;
+    --rule:        #282d33;
+    --rule-strong: #3a4048;
+    --dd:      #e66767;
+    --color:   #3987e5;
+    --known:   #199e70;
+    --novel:   #d95926;
+    --train:   #6f7a85;
+    --dd-wash:    #e6676722;
+    --color-wash: #3987e522;
+    --shadow: 0 1px 2px #00000040, 0 6px 20px #00000030;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #101316;
+  --panel:       #191c20;
+  --panel-sunk:  #14171a;
+  --ink:         #eef2f6;
+  --ink-2:       #a5aeb8;
+  --ink-3:       #6f7a85;
+  --rule:        #282d33;
+  --rule-strong: #3a4048;
+  --dd:      #e66767;
+  --color:   #3987e5;
+  --known:   #199e70;
+  --novel:   #d95926;
+  --train:   #6f7a85;
+  --dd-wash:    #e6676722;
+  --color-wash: #3987e522;
+  --shadow: 0 1px 2px #00000040, 0 6px 20px #00000030;
+}
+
+/* ============================== base ============================== */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-s);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; text-wrap: balance; font-family: var(--font-d); font-weight: 600; }
+p { margin: 0; }
+:focus-visible { outline: 2px solid var(--color); outline-offset: 2px; border-radius: 3px; }
+.num { font-family: var(--font-m); font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-family: var(--font-m); font-size: 10.5px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+}
+
+/* ============================== shell ============================== */
+.shell {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 20px;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 22px 24px 56px;
+  align-items: start;
+}
+@media (max-width: 1080px) { .shell { grid-template-columns: 1fr; } .rail { position: static !important; } }
+
+/* ============================== rail ============================== */
+.rail {
+  position: sticky; top: 22px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 12px; }
+.rail-head h2 { font-size: 15px; }
+
+.knob { padding: 11px 0 12px; border-top: 1px solid var(--rule); }
+.knob:first-of-type { border-top: none; }
+.knob-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.knob-name { font-size: 12.5px; font-weight: 600; color: var(--ink); letter-spacing: -.005em; }
+.knob-val { font-family: var(--font-m); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 500; }
+.knob-sym { font-family: var(--font-m); font-size: 10.5px; color: var(--ink-3); }
+.knob-help { font-size: 11px; line-height: 1.45; color: var(--ink-2); margin-top: 2px; max-width: 34ch; }
+
+input[type=range] {
+  -webkit-appearance: none; appearance: none; width: 100%;
+  background: transparent; margin: 9px 0 2px; height: 16px; cursor: grab;
+}
+input[type=range]:active { cursor: grabbing; }
+input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: var(--rule-strong); }
+input[type=range]::-moz-range-track { height: 3px; border-radius: 2px; background: var(--rule-strong); }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--panel); border: 2px solid var(--color); margin-top: -5.5px;
+  box-shadow: 0 1px 3px #0d111725;
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color);
+  background: var(--panel); box-shadow: 0 1px 3px #0d111725;
+}
+.knob.swept .knob-name::after {
+  content: "sweeping"; margin-left: 7px; font-family: var(--font-m); font-size: 9px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--color);
+  border: 1px solid var(--color); border-radius: 3px; padding: 0 4px; vertical-align: 1px;
+}
+
+.rail-actions { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 14px; border-top: 1px solid var(--rule); }
+button {
+  font-family: var(--font-s); font-size: 12px; font-weight: 600; color: var(--ink);
+  background: var(--panel-sunk); border: 1px solid var(--rule-strong);
+  border-radius: 6px; padding: 7px 11px; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+button:hover { background: var(--ground); border-color: var(--ink-3); }
+button.primary { background: var(--color); border-color: var(--color); color: #fff; }
+button.primary:hover { filter: brightness(1.08); }
+select {
+  font-family: var(--font-s); font-size: 12px; color: var(--ink); background: var(--panel-sunk);
+  border: 1px solid var(--rule-strong); border-radius: 6px; padding: 6px 8px; width: 100%; cursor: pointer;
+}
+.sweep-pick { padding-top: 13px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 6px; }
+.mapctl { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+.mapctl label { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+.mapctl input[type=range] { margin: 0; flex: 1; }
+.mapctl .val { font-family: var(--font-m); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); min-width: 62px; text-align: right; }
+
+/* ============================== stage ============================== */
+.stage { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+.masthead { display: flex; flex-direction: column; gap: 9px; }
+.masthead h1 { font-size: 30px; letter-spacing: -.02em; line-height: 1.12; }
+.thesis { font-size: 14.5px; color: var(--ink-2); max-width: 78ch; line-height: 1.55; }
+.thesis b { color: var(--ink); font-weight: 600; }
+.cite { font-family: var(--font-m); font-size: 10.5px; color: var(--ink-3); }
+.cite a { color: var(--ink-2); }
+
+/* verdict row */
+.verdict { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)) minmax(0,1.55fr); gap: 14px; }
+@media (max-width: 860px) { .verdict { grid-template-columns: 1fr; } }
+.score {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 14px 16px 15px; box-shadow: var(--shadow);
+  border-top: 3px solid var(--tile);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.score.dd { --tile: var(--dd); }
+.score.co { --tile: var(--color); }
+.score-name { font-size: 12.5px; font-weight: 600; letter-spacing: -.005em; }
+.score-sub { font-size: 11px; color: var(--ink-3); }
+.score-fig {
+  font-family: var(--font-m); font-variant-numeric: tabular-nums;
+  font-size: 42px; font-weight: 500; line-height: 1.05; letter-spacing: -.03em;
+  margin-top: 6px; color: var(--ink);
+}
+.score-tag { font-family: var(--font-m); font-size: 10.5px; color: var(--ink-2); margin-top: 1px; }
+.readout {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 14px 16px 15px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.readout p { font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.readout b { color: var(--ink); font-weight: 600; }
+.gapline { display: flex; align-items: baseline; gap: 8px; }
+.gapline .g { font-family: var(--font-m); font-size: 22px; font-weight: 500; letter-spacing: -.02em; }
+
+/* panels */
+.row { display: grid; gap: 20px; }
+.row.a { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); }
+.row.b { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.row.c { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1180px) { .row.a, .row.b, .row.c { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 15px 17px 14px;
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.panel h3 { font-size: 14.5px; letter-spacing: -.01em; }
+.panel .note { font-size: 11.5px; line-height: 1.45; color: var(--ink-2); max-width: 68ch; }
+.panel .note b { color: var(--ink); font-weight: 600; }
+.plot { margin-top: 9px; width: 100%; overflow-x: auto; }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font-m); font-variant-numeric: tabular-nums; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 15px; margin-top: 9px; }
+.lg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); }
+.lg i { width: 10px; height: 10px; border-radius: 2px; display: block; flex: none; }
+.lg i.rd { width: 15px; height: 0; border-top: 2px dashed var(--dd); border-radius: 0; }
+.lg i.ln { width: 15px; height: 0; border-top: 2px solid var(--color); border-radius: 0; }
+
+/* numbers table */
+details.tbl { margin-top: 4px; }
+details.tbl summary {
+  font-family: var(--font-m); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); cursor: pointer; padding: 4px 0; list-style: none;
+}
+details.tbl summary::-webkit-details-marker { display: none; }
+details.tbl summary::before { content: "▸ "; }
+details.tbl[open] summary::before { content: "▾ "; }
+table { border-collapse: collapse; width: 100%; font-size: 11.5px; margin-top: 6px; }
+th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: var(--font-m); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+td.n { font-family: var(--font-m); font-variant-numeric: tabular-nums; }
+
+/* theory conditions */
+.cond { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.cond-item { display: grid; grid-template-columns: 16px minmax(0,1fr) auto; gap: 8px; align-items: baseline; font-size: 11.5px; }
+.cond-item .mark { font-family: var(--font-m); font-weight: 600; }
+.cond-item .mark.ok { color: var(--known); }
+.cond-item .mark.no { color: var(--dd); }
+.cond-item .lbl { color: var(--ink-2); }
+.cond-item .v { font-family: var(--font-m); font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.tip {
+  position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s ease;
+  background: var(--panel); border: 1px solid var(--rule-strong); border-radius: 6px;
+  box-shadow: var(--shadow); padding: 7px 10px; font-size: 11.5px; z-index: 50;
+  font-family: var(--font-m); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap;
+}
+.busy { opacity: .55; transition: opacity .15s ease; }
+
+.foot { font-size: 11.5px; color: var(--ink-3); line-height: 1.55; max-width: 92ch; }
+.foot code { font-family: var(--font-m); font-size: 11px; color: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ========================= CONTROL RAIL ========================= -->
+  <aside class="rail">
+    <div class="rail-head">
+      <h2>The knobs</h2>
+      <span class="eyebrow">live</span>
+    </div>
+    <div id="knobs"></div>
+
+    <div class="sweep-pick">
+      <label class="eyebrow" for="sweepsel">Sweep this knob</label>
+      <select id="sweepsel"></select>
+    </div>
+
+    <div class="rail-actions">
+      <button id="play" class="primary">Sweep it ▸</button>
+      <button id="resample">New random draw</button>
+      <button id="reset">Reset</button>
+    </div>
+  </aside>
+
+  <!-- ============================ STAGE ============================ -->
+  <main class="stage">
+
+    <header class="masthead">
+      <span class="eyebrow">Open-set domain adaptation · linear-Gaussian toy model</span>
+      <h1>The Background-Shift Trap</h1>
+      <p class="thesis">
+        A new class shows up after deployment. The obvious detector : train a classifier to tell
+        <em>training data</em> from <em>deployment data</em>, and call the deployment-looking points novel : can score
+        <b>worse than a coin flip</b>, while a constrained rule on the very same data clears <b>0.90</b>.
+        Both find the <b>same</b> amount of novel-class signal. The difference is what else they are forced to buy.
+      </p>
+      <p class="cite">Chaudhari, Wald &amp; Saria · <a href="https://arxiv.org/abs/2512.01152">arXiv:2512.01152</a> · Definition 2 &amp; eq. 2, solved exactly in your browser · <a href="https://github.com/Shra1-25/CoLOR">code on GitHub</a></p>
+    </header>
+
+    <!-- verdict -->
+    <section class="verdict">
+      <div class="score dd">
+        <span class="score-name">Domain discriminator</span>
+        <span class="score-sub">separate training from deployment</span>
+        <span class="score-fig num" id="fig-dd"> : </span>
+        <span class="score-tag">AUROC, novel vs. known</span>
+      </div>
+      <div class="score co">
+        <span class="score-name">CoLOR (constrained)</span>
+        <span class="score-sub">same data, one constraint relaxed</span>
+        <span class="score-fig num" id="fig-co"> : </span>
+        <span class="score-tag">AUROC, novel vs. known</span>
+      </div>
+      <div class="readout">
+        <span class="eyebrow">What just happened</span>
+        <div class="gapline"><span class="g num" id="fig-gap"> : </span><span style="font-size:11.5px;color:var(--ink-3)">AUROC gap, same training set</span></div>
+        <p id="verdict-txt"> : </p>
+      </div>
+    </section>
+
+    <!-- row A : one geometry scene per rule -->
+    <section class="row a" style="grid-template-columns:1fr 1fr">
+      <div class="panel">
+        <span class="eyebrow">1a · the geometry</span>
+        <h3>Where <span class="num">w_DD</span> breaks even</h3>
+        <p class="note">
+          Two informative axes plus <b>one</b> of the <span class="num" id="dnoise">1998</span> noise
+          directions. Without that third axis <span class="num">S_S</span> and
+          <span class="num">S_T,0</span> would collapse onto a line: along <span class="num">η̂</span>
+          they have <em>exactly</em> zero spread. That is what makes <span class="num">S_T,1</span>
+          detectable at all: it hangs <b>below the grid plane</b> the known classes live in, while the
+          background shift only slides them <b>left to right</b>. Points behind the plane are
+          <b>faded</b>. <b>Drag to rotate.</b>
+        </p>
+        <div class="plot"><svg id="geo-dd" viewBox="0 0 520 400" role="img" aria-label="Rotatable 3D scatter with the domain discriminator break-even plane"></svg></div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--train)"></i>source <span class="num">S_S</span></span>
+          <span class="lg"><i style="background:var(--known)"></i>target known <span class="num">S_T,0</span></span>
+          <span class="lg"><i style="background:var(--novel)"></i>target novel <span class="num">S_T,1</span></span>
+          <span class="lg"><i class="rd"></i><span class="num">w_DD</span> break-even</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="eyebrow">1b · the geometry</span>
+        <h3>Where <span class="num">w_color</span> breaks even</h3>
+        <p class="note">
+          The same points from the same viewpoint, with only the constrained rule's surface drawn.
+          Both surfaces pass through the <span class="num">S_T,0</span> centroid by construction, so
+          the <em>angle</em> between them is not the AUROC gap: panel 2 is where that lives.
+        </p>
+        <div class="plot"><svg id="geo-co" viewBox="0 0 520 400" role="img" aria-label="Rotatable 3D scatter with the CoLOR break-even plane"></svg></div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--train)"></i>source <span class="num">S_S</span></span>
+          <span class="lg"><i style="background:var(--known)"></i>target known <span class="num">S_T,0</span></span>
+          <span class="lg"><i style="background:var(--novel)"></i>target novel <span class="num">S_T,1</span></span>
+          <span class="lg"><i class="ln"></i><span class="num">w_color</span> break-even</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="row a">
+      <div class="panel">
+        <span class="eyebrow">2 · what the detector actually sees</span>
+        <h3>Novelty scores on fresh target data</h3>
+        <p class="note">
+          The other <span class="num" id="dtxt2">1998</span> directions hold pure noise, but there are
+          so many that a max-margin model can <b>interpolate individual training points</b> through
+          them, and that mass smears every score. Here is the result: the whole distribution of
+          <span class="num">w<sup>⊤</sup>x</span> for each group.
+          <b>AUROC is the chance an orange draw beats a green one.</b>
+          The plane above shows 2 of <span class="num" id="dtxt">2000</span> directions.
+        </p>
+        <div class="plot"><svg id="strips" viewBox="0 0 560 330" role="img" aria-label="Score distributions for target known and target novel data under each rule"></svg></div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--known)"></i>target known <span class="num">S_T,0</span></span>
+          <span class="lg"><i style="background:var(--novel)"></i>target novel <span class="num">S_T,1</span></span>
+          <span class="lg" style="color:var(--ink-3)">higher score = more novel →</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="eyebrow">3 · the verdict</span>
+        <h3>ROC for novel class detection</h3>
+        <p class="note">Below the diagonal means the rule is <b>anti-correlated</b> with novelty: it ranks genuine <span class="num">S_T,1</span> points <em>lower</em> than <span class="num">S_T,0</span>.</p>
+        <div class="plot"><svg id="roc" viewBox="0 0 300 300" role="img" aria-label="ROC curves for both rules"></svg></div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--dd)"></i><span class="num">w_DD</span></span>
+          <span class="lg"><i style="background:var(--color)"></i><span class="num">w_color</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- row B -->
+    <section class="row a">
+      <div class="panel">
+        <span class="eyebrow">4 · the mechanism</span>
+        <h3>Where the weight goes</h3>
+        <p class="note">
+          The punchline. Both rules pick up the <b>same</b> novel-class signal. The discriminator must also
+          separate training from deployment <em>by a full margin</em>, and the cheapest way is to lean hard on the
+          background-shift direction. That extra lean lifts familiar points above novel ones.
+        </p>
+        <div class="plot"><svg id="budget" viewBox="0 0 300 300" role="img" aria-label="Magnitude of each detector's weight vector along the background-shift direction, the novel-class direction, and the memorised noise directions"></svg></div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--dd)"></i><span class="num">w_DD</span></span>
+          <span class="lg"><i style="background:var(--color)"></i><span class="num">w_color</span></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="eyebrow">5 · the regime</span>
+        <h3 id="sweep-title">Sweep</h3>
+        <p class="note" id="sweep-note">Re-solving both rules across the range of one knob. The dot marks your current setting.</p>
+        <div class="plot"><svg id="sweep" viewBox="0 0 300 300" role="img" aria-label="AUROC of both detectors as one problem parameter is swept"></svg></div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--dd)"></i><span class="num">w_DD</span></span>
+          <span class="lg"><i style="background:var(--color)"></i><span class="num">w_color</span></span>
+          <span class="lg" id="sweep-status" style="color:var(--ink-3)"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- regime map + numbers + conditions -->
+    <section class="row c">
+      <div class="panel">
+        <span class="eyebrow">6 · where the theory lives</span>
+        <h3>The regime map</h3>
+        <p class="note">
+          Both claims on one plane. <b>Shaded cells</b> are what this simulator measures : blue where CoLOR
+          beats the discriminator, red where it does not. The <b>outlined wedge</b> is where Theorem 2's
+          conditions (8)–(10) actually hold. They are different corners: the theorem needs a
+          <b>large</b> background shift and a <b>faint</b> novelty, at <span class="num">N_T ≥ 66,049</span>  : 
+          a Gram matrix of 142 GB against 6.5 MB here.
+        </p>
+        <div class="plot"><svg id="regime" viewBox="0 0 330 300" role="img" aria-label="Log-log map of background shift against novel-class distinctiveness, showing the measured AUROC gap and the region where the theorem's conditions hold"></svg></div>
+        <div class="mapctl">
+          <label for="thNT">Theorem's N_T</label>
+          <input type="range" id="thNT" min="20000" max="2000000" step="10000" value="200000" aria-label="Target sample size for the theorem region">
+          <span class="val" id="thNTv">200,000</span>
+        </div>
+        <div class="legend">
+          <span class="lg"><i style="background:var(--color)"></i>CoLOR ahead</span>
+          <span class="lg"><i style="background:var(--dd)"></i>discriminator ahead</span>
+          <span class="lg"><i style="background:transparent;border:1.5px solid var(--ink-2)"></i>theorem region</span>
+          <span class="lg" id="regime-status" style="color:var(--ink-3)"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="eyebrow">the numbers</span>
+        <h3>Current solution, exactly</h3>
+        <p class="note">Both max-margin problems are solved in the dual by FISTA (90 iterations), which agrees with an exact interior-point solve to <b>±0.001</b> AUROC. AUROC itself is the closed form of Lemma 2, not a sample estimate.</p>
+        <table>
+          <thead><tr><th>Quantity</th><th>Discriminator</th><th>CoLOR</th></tr></thead>
+          <tbody id="numtable"></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <span class="eyebrow">against the paper</span>
+        <h3>Theorem 1's stated conditions</h3>
+        <p class="note">
+          The sufficient conditions of Theorem 2 (TMLR 05/2026), eqs. (8)–(11). They are <b>not</b> necessary  : 
+          the separation above is real wherever the two big numbers say so, whether or not these boxes are green.
+        </p>
+        <div class="cond" id="conds"></div>
+        <p class="note" style="margin-top:10px;color:var(--ink-3)">
+          These boxes will not all go green here, and that is expected rather than a failure. Chaining (9)
+          into (10) caps <span class="num">r<sub>η</sub> ≤ 1/(16√N_T,1) ≤ 1/16</span>, which against (8)'s
+          floor <span class="num">16/√N_T</span> needs <span class="num">N_T ≥ 66,049</span> : with
+          <span class="num">N_S ≥ N_T</span> that is a 142 GB Gram matrix, against 6.5 MB here. The theorem
+          and this simulator therefore show the same phenomenon from two different corners: panel 6 draws both.
+        </p>
+      </div>
+    </section>
+
+    <p class="foot">
+      <b>What is being solved.</b> Source <code>P_S = N(μ, σ²(I − η̂η̂ᵀ))</code>, shifted known class
+      <code>P_T,0 = N(−μ, σ²(I − η̂η̂ᵀ))</code>, novel class <code>P_T,1 = N(−η, σ²(I − μ̂μ̂ᵀ))</code>, with
+      <code>μ ⟂ η</code> and <code>σ = 1/√d</code>. Both detectors are the max-margin solutions of eq. (2):
+      the discriminator demands margin 1 on <em>both</em> sets; CoLOR demands margin 1 on the deployment set and only
+      the correct <em>side</em> (margin 0) on the training set. Because every quantity depends on the data solely through
+      the two informative coordinates and the Gram matrix of the orthogonal noise : exactly
+      <code>σ²·Wishart(d−2, I_N)</code> : the full <code>d</code>-dimensional problem is simulated here in
+      <code>O(N²)</code> without approximation. Validated against the explicit <code>d</code>-dimensional solve and
+      against empirical AUROC on fresh samples.
+    </p>
+  </main>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+(() => {
+"use strict";
+
+/* ==================================================================
+   1. RANDOMNESS
+   ================================================================== */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeNormal(rand) {
+  let spare = null;
+  return function () {
+    if (spare !== null) { const s = spare; spare = null; return s; }
+    let u, v, s;
+    do { u = 2 * rand() - 1; v = 2 * rand() - 1; s = u * u + v * v; } while (s >= 1 || s === 0);
+    const f = Math.sqrt(-2 * Math.log(s) / s);
+    spare = v * f;
+    return u * f;
+  };
+}
+/* chi-square via Wilson-Hilferty; exact enough for df >= ~50, which we enforce. */
+function chi2(df, nrm) {
+  const z = nrm(), t = 1 - 2 / (9 * df) + z * Math.sqrt(2 / (9 * df));
+  return df * Math.pow(Math.max(t, 1e-9), 3);
+}
+
+/* Gaussian tail Q(x) = P(Z > x), via Abramowitz & Stegun 7.1.26 on erf. */
+function erf(x) {
+  const s = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return s * y;
+}
+const Q = (x) => 0.5 * (1 - erf(x / Math.SQRT2));
+
+/* ==================================================================
+   2. THE NOISE GEOMETRY  (cached, because it is the expensive part)
+   ------------------------------------------------------------------
+   The Gram matrix of the noise orthogonal to span{mu, eta} is exactly
+   W = sigma^2 * Wishart(d - 2, I_N). Bartlett gives W = sigma^2 L L^T with
+   L lower-triangular. We never FORM W (that would cost O(N^3)); we only ever
+   need W*v, and W*v = sigma^2 * L (L^T v) is two triangular sweeps: O(N^2).
+
+   L depends only on (N, d, seed) - NOT on the shift sizes or the novel-class
+   share - so moving those sliders reuses the cached factor.
+   ================================================================== */
+const noiseCache = new Map();
+function getNoise(N, d, seed) {
+  const key = N + "|" + d + "|" + seed;
+  const hit = noiseCache.get(key);
+  if (hit) return hit;
+
+  const nrm = makeNormal(mulberry32((seed * 2654435761 + N * 7919 + d * 104729) | 0));
+  const df = d - 2;
+  const L = new Float64Array(N * N);
+  for (let i = 0; i < N; i++) {
+    const ri = i * N;
+    for (let j = 0; j < i; j++) L[ri + j] = nrm();
+    L[ri + i] = Math.sqrt(chi2(df - i, nrm));
+  }
+  const s2 = 1 / d;                       // sigma^2
+  const u = new Float64Array(N);
+  /* W*v = sigma^2 L (L^T v), both sweeps row-major */
+  const applyW = (v, out) => {
+    u.fill(0);
+    for (let i = 0; i < N; i++) {
+      const vi = v[i]; if (vi === 0) continue;
+      const ri = i * N;
+      for (let k = 0; k <= i; k++) u[k] += L[ri + k] * vi;
+    }
+    for (let i = 0; i < N; i++) {
+      const ri = i * N;
+      let acc = 0;
+      for (let k = 0; k <= i; k++) acc += L[ri + k] * u[k];
+      out[i] = s2 * acc;
+    }
+    return out;
+  };
+
+  /* largest eigenvalue of W, once, by power iteration */
+  let v = new Float64Array(N), tv = new Float64Array(N);
+  for (let i = 0; i < N; i++) v[i] = 1 / Math.sqrt(N);
+  let lamMax = 1;
+  for (let it = 0; it < 24; it++) {
+    applyW(v, tv);
+    let n = 0; for (let i = 0; i < N; i++) n += tv[i] * tv[i];
+    n = Math.sqrt(n); if (!(n > 0)) break;
+    lamMax = n; for (let i = 0; i < N; i++) v[i] = tv[i] / n;
+  }
+
+  const rec = { N, applyW, lamMax };
+  if (noiseCache.size > 3) noiseCache.delete(noiseCache.keys().next().value);
+  noiseCache.set(key, rec);
+  return rec;
+}
+
+/* The informative coordinates: a[i] = <x_i, mu_hat>, b[i] = <x_i, eta_hat>. */
+function sampleProblem(p) {
+  const { d, NS, NT, alpha, rMu, rEta, seed } = p;
+  const sigma = 1 / Math.sqrt(d);
+  const NT1 = Math.max(1, Math.round(alpha * NT));
+  const NT0 = NT - NT1;
+  const N = NS + NT;
+
+  /* a separate stream from the noise factor, so the two stay independent */
+  const nrm = makeNormal(mulberry32((seed * 22695477 + 1) | 0));
+  const a = new Float64Array(N), b = new Float64Array(N), y = new Float64Array(N);
+  for (let i = 0; i < NS; i++)  { a[i] =  rMu + sigma * nrm(); y[i] = -1; }
+  for (let i = 0; i < NT0; i++) { a[NS + i] = -rMu + sigma * nrm(); y[NS + i] = 1; }
+  for (let i = 0; i < NT1; i++) { b[NS + NT0 + i] = -rEta + sigma * nrm(); y[NS + NT0 + i] = 1; }
+
+  /* One representative direction from the d-2 noise dimensions, for the 3D view.
+     u is a fixed unit vector orthogonal to both mu_hat and eta_hat, so <x_i, u> ~ N(0, sigma^2)
+     for EVERY group (both covariances only drop mu_hat or eta_hat) and is independent of a, b.
+     Drawn after a and b so their streams - and every reported number - are unchanged. */
+  const c = new Float64Array(N);
+  for (let i = 0; i < N; i++) c[i] = sigma * nrm();
+
+  const noise = getNoise(N, d, seed);
+  return { a, b, c, y, N, NS, NT0, NT1, sigma, applyW: noise.applyW, lamMaxW: noise.lamMax };
+}
+
+/* ==================================================================
+   3. THE TWO LEARNING RULES  (eq. 2), solved in the dual
+   ------------------------------------------------------------------
+   min ||w||  s.t.  y_i w^T x_i >= c_i    <=>
+   max_{lam >= 0}  c^T lam - 1/2 lam^T Ktil lam,   w = sum_i lam_i y_i x_i
+   with Ktil = (y y^T) o (a a^T + b b^T + W). Kept implicit: two rank-1 pieces
+   in O(N) plus one W multiply in O(N^2).
+   ================================================================== */
+function makeMatvec(P) {
+  const { a, b, y, N, applyW } = P;
+  const ya = new Float64Array(N), yb = new Float64Array(N);
+  for (let i = 0; i < N; i++) { ya[i] = y[i] * a[i]; yb[i] = y[i] * b[i]; }
+  const tmp = new Float64Array(N), wt = new Float64Array(N);
+
+  const mv = function (v, out) {
+    let da = 0, db = 0;
+    for (let i = 0; i < N; i++) { da += ya[i] * v[i]; db += yb[i] * v[i]; tmp[i] = y[i] * v[i]; }
+    applyW(tmp, wt);
+    for (let i = 0; i < N; i++) out[i] = y[i] * wt[i] + ya[i] * da + yb[i] * db;
+    return out;
+  };
+  /* Lipschitz bound: lam_max(A + uu^T + vv^T) <= lam_max(A) + |u|^2 + |v|^2.
+     Cheap and valid, so no per-solve power iteration is needed. */
+  let na = 0, nb = 0;
+  for (let i = 0; i < N; i++) { na += ya[i] * ya[i]; nb += yb[i] * yb[i]; }
+  mv.lip = (P.lamMaxW + na + nb) * 1.02 + 1e-12;
+  return mv;
+}
+
+function fista(mv, c, N, iters) {
+  const Lc = mv.lip;
+  const lam = new Float64Array(N), yv = new Float64Array(N), g = new Float64Array(N);
+  let t = 1;
+  for (let it = 0; it < iters; it++) {
+    mv(yv, g);
+    const tn = 0.5 * (1 + Math.sqrt(1 + 4 * t * t)), mom = (t - 1) / tn;
+    for (let i = 0; i < N; i++) {
+      const nl = Math.max(yv[i] - (g[i] - c[i]) / Lc, 0);
+      yv[i] = nl + mom * (nl - lam[i]);
+      lam[i] = nl;
+    }
+    t = tn;
+  }
+  return lam;
+}
+
+/* Solve one rule and derive every reported quantity. */
+function solveRule(P, mv, which, iters) {
+  const { a, b, y, N, applyW } = P;
+  const c = new Float64Array(N);
+  for (let i = 0; i < N; i++) c[i] = (which === "DD") ? 1 : (y[i] > 0 ? 1 : 0);
+  const lam = fista(mv, c, N, iters);
+
+  const ly = new Float64Array(N);
+  for (let i = 0; i < N; i++) ly[i] = lam[i] * y[i];
+  let wMu = 0, wEta = 0;
+  for (let i = 0; i < N; i++) { wMu += ly[i] * a[i]; wEta += ly[i] * b[i]; }
+
+  /* ||w||^2 = ly^T K ly with K = aa^T + bb^T + W */
+  const wt = new Float64Array(N);
+  applyW(ly, wt);
+  let quad = 0;
+  for (let i = 0; i < N; i++) quad += ly[i] * wt[i];
+  const w2 = quad + wMu * wMu + wEta * wEta;
+  return finishRule(wMu, wEta, w2, P);
+}
+
+function finishRule(wMu, wEta, w2, P) {
+  const { sigma } = P, rMu = P.rMu, rEta = P.rEta;
+  /* score marginals on fresh deployment data, h(x) = w^T x */
+  const m0 = -rMu * wMu, s0 = sigma * Math.sqrt(Math.max(w2 - wEta * wEta, 0));
+  const m1 = -rEta * wEta, s1 = sigma * Math.sqrt(Math.max(w2 - wMu * wMu, 0));
+  const denom = Math.sqrt(s0 * s0 + s1 * s1) || 1e-300;
+  return {
+    wMu, wEta, wNorm: Math.sqrt(Math.max(w2, 0)),
+    memo: Math.sqrt(Math.max(w2 - wMu * wMu - wEta * wEta, 0)),
+    m0, s0, m1, s1,
+    auroc: Q((m0 - m1) / denom)
+  };
+}
+
+function solveBoth(p, iters) {
+  const P = sampleProblem(p);
+  P.rMu = p.rMu; P.rEta = p.rEta;
+  const mv = makeMatvec(P);
+  return { P, DD: solveRule(P, mv, "DD", iters), CO: solveRule(P, mv, "CO", iters) };
+}
+
+/* ==================================================================
+   4. CONTROLS - plain language first, symbol second
+   ================================================================== */
+const KNOBS = [
+  { key: "rMu", name: "Background shift", sym: "‖μ‖", min: 0.005, max: 3.0, def: 0.13, log: true,
+    fmt: v => v < 1 ? v.toFixed(3) : v.toFixed(2),
+    help: "How far the familiar class moves between training and deployment. Bigger = the two worlds look more different.",
+    sweep: [0.01, 2.0] },
+  { key: "rEta", name: "How distinctive the new class is", sym: "‖η‖", min: 0.02, max: 12, def: 1.0, log: true,
+    fmt: v => v < 1 ? v.toFixed(3) : v.toFixed(2),
+    help: "How far the unseen class sits off the familiar axis. Bigger = an easier novelty to spot.",
+    sweep: [0.05, 8.0] },
+  { key: "alpha", name: "How much of deployment is new", sym: "α", min: 0.004, max: 0.45, def: 0.10, log: true,
+    fmt: v => (100 * v).toFixed(v < 0.01 ? 1 : 0) + "%",
+    help: "Share of the unlabelled deployment set that belongs to the novel class.",
+    sweep: [0.005, 0.40], structural: true },
+  { key: "NS", name: "Labelled training examples", sym: "N_S", min: 50, max: 1000, step: 25, def: 750, int: true,
+    fmt: v => String(v),
+    help: "Points from the old world, with labels. More of them makes the discriminator's margin more expensive.",
+    sweep: [50, 1000], structural: true },
+  { key: "NT", name: "Unlabelled deployment examples", sym: "N_T", min: 40, max: 400, step: 10, def: 150, int: true,
+    fmt: v => String(v),
+    help: "Points from the new world, unlabelled : some fraction of them are the novel class.",
+    sweep: [40, 400], structural: true },
+  { key: "d", name: "Model capacity", sym: "d", min: 600, max: 4000, step: 50, def: 2000, int: true,
+    fmt: v => String(v),
+    help: "Number of free directions. Above the sample count the model can interpolate : and memorise.",
+    sweep: [600, 4000], structural: true }
+];
+
+/* log-scaled sliders: the interesting behaviour lives near the small end, but the
+   ranges deliberately run far past it so the AUROC gap can be watched closing. */
+const LOGN = 1000;
+const toPos   = (k, v) => k.log ? Math.round(LOGN * Math.log(v / k.min) / Math.log(k.max / k.min)) : v;
+const fromPos = (k, p) => k.log ? k.min * Math.pow(k.max / k.min, p / LOGN) : (k.int ? Math.round(p) : p);
+const lerpK   = (k, a0, a1, t) => k.log ? a0 * Math.pow(a1 / a0, t) : a0 + (a1 - a0) * t;
+const DEF = {}; KNOBS.forEach(k => DEF[k.key] = k.def); DEF.seed = 19;
+let S = Object.assign({}, DEF);
+
+const $ = id => document.getElementById(id);
+/* the Wishart factor needs d - 2 - (N - 1) degrees of freedom left over; keep a margin */
+const D_MAX = KNOBS.find(k => k.key === "d").max;
+const clampD = () => { const need = S.NS + S.NT + 80; if (S.d < need) S.d = Math.min(D_MAX, Math.ceil(need / 50) * 50); };
+
+/* build rail */
+const knobsEl = $("knobs");
+KNOBS.forEach(k => {
+  const w = document.createElement("div");
+  w.className = "knob"; w.dataset.key = k.key;
+  w.innerHTML =
+    '<div class="knob-top"><span class="knob-name">' + k.name + '</span>' +
+    '<span class="knob-val" id="v-' + k.key + '"></span></div>' +
+    '<div class="knob-sym">' + k.sym + '</div>' +
+    '<input type="range" id="i-' + k.key + '"' +
+      (k.log ? ' min="0" max="' + LOGN + '" step="1"'
+             : ' min="' + k.min + '" max="' + k.max + '" step="' + (k.step || 1) + '"') +
+      ' aria-label="' + k.name + '">' +
+    '<div class="knob-help">' + k.help + '</div>';
+  knobsEl.appendChild(w);
+});
+const sel = $("sweepsel");
+KNOBS.forEach(k => { const o = document.createElement("option"); o.value = k.key; o.textContent = k.name; sel.appendChild(o); });
+sel.value = "rEta";
+
+function syncRail() {
+  KNOBS.forEach(k => {
+    $("i-" + k.key).value = toPos(k, S[k.key]);
+    $("v-" + k.key).textContent = k.fmt(S[k.key]);
+    knobsEl.querySelector('[data-key="' + k.key + '"]').classList.toggle("swept", sel.value === k.key);
+  });
+}
+
+/* ==================================================================
+   5. DRAWING HELPERS
+   ================================================================== */
+const NS_SVG = "http://www.w3.org/2000/svg";
+function el(tag, attrs, txt) {
+  const n = document.createElementNS(NS_SVG, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (txt != null) n.textContent = txt;
+  return n;
+}
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function axisText(x, y, t, anchor, size, fill) {
+  return el("text", { x, y, "text-anchor": anchor || "middle", "font-size": size || 10, fill: fill || "var(--ink-3)" }, t);
+}
+function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+
+const tip = $("tip");
+function showTip(e, html) {
+  tip.innerHTML = html; tip.style.opacity = "1";
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, yy = e.clientY - r.height - 10;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (yy < 8) yy = e.clientY + 16;
+  tip.style.left = x + "px"; tip.style.top = yy + "px";
+}
+const hideTip = () => { tip.style.opacity = "0"; };
+
+/* normal pdf */
+const pdf = (x, m, s) => Math.exp(-0.5 * Math.pow((x - m) / s, 2)) / (s * Math.sqrt(2 * Math.PI));
+
+/* ==================================================================
+   6. PANEL 1 - geometry, in 3D
+   ------------------------------------------------------------------
+   Axes: <x, mu_hat> (background shift), <x, eta_hat> (novel class), and ONE
+   representative direction from the d-2 noise dimensions. The first two are the
+   only informative coordinates; the third is there because in the plane alone
+   the known classes have exactly zero spread and collapse onto a line.
+   ================================================================== */
+let geoAz = -0.62, geoEl = 0.34;
+
+function drawGeo(R, svgId, which) {
+  const svg = $(svgId); clear(svg);
+  const RULE_ = R[which], RCOL = which === "DD" ? css("--dd") : css("--color");
+  const RDASH = which === "DD" ? "6 4" : "0";
+  const RNAME = which === "DD" ? "w_DD break-even" : "w_color break-even";
+  /* SC is the projection scale - deliberately NOT called S, which is the global state */
+  const W = 520, H = 400, cx = W / 2, cy = H / 2 + 10, SC = 158;
+  const { P } = R, { a, b, c, N, NS, NT0 } = P;
+
+  /* data -> normalised cube coords */
+  const xr = Math.max(S.rMu * 1.9, 4 * P.sigma);
+  const vS = S.rEta * 1.2;
+  const cr = 3.6 * P.sigma;
+  const nx = u => u / xr, ny = v => v / vS, nz = w => w / cr;
+
+  const ca = Math.cos(geoAz), sa = Math.sin(geoAz);
+  const ce = Math.cos(geoEl), se = Math.sin(geoEl);
+  /* project a normalised point; returns [screenX, screenY, depth] (larger depth = nearer) */
+  function pr(X, Y, Z) {
+    const x1 = X * ca + Z * sa, z1 = -X * sa + Z * ca;
+    return [cx + SC * x1, cy - SC * (Y * ce - z1 * se), Y * se + z1 * ce];
+  }
+  const line = (p, q, stroke, w, dash, op) => el("line", {
+    x1: p[0].toFixed(1), y1: p[1].toFixed(1), x2: q[0].toFixed(1), y2: q[1].toFixed(1),
+    stroke, "stroke-width": w || 1, "stroke-dasharray": dash || "0", opacity: op == null ? 1 : op
+  });
+
+  /* ---- floor grid at <x, eta_hat> = 0 : the plane every KNOWN point lies in ---- */
+  const g0 = el("g", {});
+  for (let i = -2; i <= 2; i++) {
+    const t = i / 2;
+    g0.appendChild(line(pr(t, 0, -1), pr(t, 0, 1), "var(--rule)", 1, "0", 0.9));
+    g0.appendChild(line(pr(-1, 0, t), pr(1, 0, t), "var(--rule)", 1, "0", 0.9));
+  }
+  svg.appendChild(g0);
+
+  /* ---- break-even planes: {w_mu*u + w_eta*v = <w,-mu>}, flat in the noise axis ---- */
+  function plane(r, col, dash, label) {
+    const { wMu, wEta } = r;
+    if (Math.abs(wEta) < 1e-12) return;
+    const c0 = -S.rMu * wMu;
+    /* Clip the LINE to the box. Clamping its endpoints instead would smear the
+       surface across the whole frame rather than the narrow ribbon it really is. */
+    const YLO = -1.05, YHI = 0.25;
+    const nyAt = X => (c0 - wMu * X * xr) / (wEta * vS);
+    let XL = -1, XR = 1;
+    if (Math.abs(wMu) > 1e-12) {
+      const x1 = (c0 - wEta * vS * YLO) / (wMu * xr);
+      const x2 = (c0 - wEta * vS * YHI) / (wMu * xr);
+      XL = Math.max(-1, Math.min(x1, x2));
+      XR = Math.min(1, Math.max(x1, x2));
+    }
+    if (XR <= XL) return;                         /* surface misses the visible box */
+    const A = nyAt(XL), B = nyAt(XR);
+    const q = [pr(XL, A, -1), pr(XR, B, -1), pr(XR, B, 1), pr(XL, A, 1)];
+    const g = el("g", {});
+    g.appendChild(el("polygon", {
+      points: q.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" "),
+      fill: col, opacity: 0.11
+    }));
+    g.appendChild(line(q[0], q[1], col, 2, dash));
+    g.appendChild(line(q[3], q[2], col, 2, dash, 0.5));
+    g.appendChild(line(q[0], q[3], col, 1, "0", 0.35));
+    g.appendChild(line(q[1], q[2], col, 1, "0", 0.35));
+    const mid = pr(XR, B, 1);
+    g.appendChild(el("text", {
+      x: mid[0] - 4, y: mid[1] - 5, "text-anchor": "end", "font-size": 9.5,
+      "font-weight": 600, fill: col
+    }, label));
+    svg.appendChild(g);
+  }
+
+  /* ---- occlusion test: is a break-even plane between this point and the eye? ----
+     View direction in normalised box coords is the gradient of the depth term.
+     Plane normal there is (w_mu*xr, w_eta*vS, 0) - flat in the noise axis - so a
+     point is hidden iff its signed distance and the camera side disagree. */
+  const camX = -sa * ce, camY = se, camZ = ca * ce;
+  function sideOf(r) {
+    const c0 = -S.rMu * r.wMu;
+    const ndotc = r.wMu * xr * camX + r.wEta * vS * camY;
+    return i => (r.wMu * a[i] + r.wEta * b[i] - c0) * ndotc < 0;
+  }
+  const occluded = sideOf(RULE_);
+
+  /* ---- points, painted far to near ---- */
+  const pts = [];
+  function cloud(from, to, cap, fill, rad) {
+    const n = to - from, stride = Math.max(1, Math.ceil(n / cap));
+    for (let i = from; i < to; i += stride) {
+      const p = pr(nx(a[i]), ny(b[i]), nz(c[i]));
+      pts.push({ x: p[0], y: p[1], d: p[2], fill, rad, hid: occluded(i) });
+    }
+  }
+  cloud(0, NS, 200, "var(--train)", 2.9);
+  cloud(NS, NS + NT0, 150, "var(--known)", 3.1);
+  cloud(NS + NT0, N, 150, "var(--novel)", 3.8);
+  pts.sort((p, q) => p.d - q.d);
+
+  /* axes behind the points */
+  const axes = el("g", {});
+  axes.appendChild(line(pr(-1.05, 0, 0), pr(1.05, 0, 0), "var(--rule-strong)", 1.2));
+  axes.appendChild(line(pr(0, 0.22, 0), pr(0, -1.08, 0), "var(--rule-strong)", 1.2));
+  axes.appendChild(line(pr(0, 0, -1.05), pr(0, 0, 1.05), "var(--rule-strong)", 1.2, "3 3"));
+  [-1, 1].forEach(t => {
+    const p = pr(t, 0, 0);
+    axes.appendChild(el("text", { x: p[0], y: p[1] + 13, "text-anchor": "middle", "font-size": 8.5,
+      fill: "var(--ink-3)" }, (t * xr).toFixed(2)));
+  });
+  const pv = pr(0, ny(-S.rEta), 0);
+  axes.appendChild(el("text", { x: pv[0] - 7, y: pv[1] + 3, "text-anchor": "end", "font-size": 8.5,
+    fill: "var(--ink-3)" }, (-S.rEta).toFixed(2)));
+  svg.appendChild(axes);
+  plane(RULE_, RCOL, RDASH, RNAME);
+
+  /* hidden points UNDER the planes, visible ones on top, so the glass reads correctly */
+  const gHid = el("g", {}), gp = el("g", {});
+  pts.forEach(p => {
+    const k = 0.72 + 0.28 * (p.d + 1) / 2;                 /* nearer = bigger, denser */
+    const c = el("circle", {
+      cx: p.x.toFixed(1), cy: p.y.toFixed(1),
+      r: (p.rad * k * (p.hid ? 0.85 : 1)).toFixed(2),
+      fill: p.fill, opacity: (p.hid ? 0.20 : 0.42 + 0.5 * k).toFixed(2)
+    });
+    (p.hid ? gHid : gp).appendChild(c);
+  });
+  svg.insertBefore(gHid, svg.firstChild.nextSibling);      /* just above the floor grid */
+  svg.appendChild(gp);
+
+  /* drop line: the novel cloud hangs BELOW the plane the known data lives in */
+  const nvTop = pr(0, 0, 0), nvBot = pr(0, ny(-S.rEta), 0);
+  svg.appendChild(line(nvTop, nvBot, "var(--novel)", 1.3, "3 3", 0.8));
+
+  /* ---- labels ---- */
+  function tag(p, t, fill, anchor, dy) {
+    svg.appendChild(el("text", {
+      x: p[0], y: p[1] + (dy || 0), "text-anchor": anchor, "font-size": 10,
+      "font-weight": 600, fill
+    }, t));
+  }
+  tag(pr(nx(S.rMu), 0.30, 0), "S_S", "var(--train)", "middle", 0);
+  tag(pr(nx(-S.rMu), 0.30, 0), "S_T,0", "var(--known)", "middle", 0);
+  tag(pr(0, ny(-S.rEta) - 0.16, 0), "S_T,1", "var(--novel)", "middle", 0);
+  const axl = (p, t, anchor) => svg.appendChild(el("text", {
+    x: p[0], y: p[1], "text-anchor": anchor || "middle", "font-size": 9.5, fill: "var(--ink-2)"
+  }, t));
+  axl(pr(1.22, 0, 0), "⟨x, μ̂⟩  background shift", "start");
+  axl(pr(0, -1.24, 0), "⟨x, η̂⟩  novel class");
+  axl(pr(0, 0.02, 1.24), "one of the noise directions", "middle");
+
+  svg.appendChild(el("text", {
+    x: 10, y: H - 6, "font-size": 9, fill: "var(--ink-3)"
+  }, "drag to rotate"));
+}
+
+function drawBothGeo(R) { drawGeo(R, "geo-dd", "DD"); drawGeo(R, "geo-co", "CO"); }
+
+/* drag to rotate */
+(function () {
+  const svgs = [$("geo-dd"), $("geo-co")];
+  let down = false, px = 0, py = 0;
+  svgs.forEach(svg => {
+    svg.style.cursor = "grab";
+    svg.addEventListener("mousedown", e => {
+      down = true; px = e.clientX; py = e.clientY;
+      svgs.forEach(v => v.style.cursor = "grabbing"); e.preventDefault();
+    });
+  });
+  addEventListener("mouseup", () => { down = false; svgs.forEach(v => v.style.cursor = "grab"); });
+  addEventListener("mousemove", e => {
+    if (!down || !LAST) return;
+    geoAz += (e.clientX - px) * 0.008;
+    geoEl = Math.max(-0.15, Math.min(1.15, geoEl + (e.clientY - py) * 0.005));
+    px = e.clientX; py = e.clientY;
+    drawBothGeo(LAST);                       /* rotate the pair together */
+  });
+})();
+
+/* ==================================================================
+   7. PANEL 2 - score distributions
+   ================================================================== */
+function drawStrips(R) {
+  const svg = $("strips"); clear(svg);
+  const W = 560, H = 330, mL = 14, mR = 14, gap = 26;
+  const rows = [["w_DD", R.DD, css("--dd")], ["w_color", R.CO, css("--color")]];
+  const rowH = (H - 30 - gap) / 2;
+
+  /* one shared score axis so the two rows are comparable */
+  let lo = Infinity, hi = -Infinity;
+  rows.forEach(([, r]) => {
+    lo = Math.min(lo, r.m0 - 3.4 * r.s0, r.m1 - 3.4 * r.s1);
+    hi = Math.max(hi, r.m0 + 3.4 * r.s0, r.m1 + 3.4 * r.s1);
+  });
+  const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
+  const px = W - mL - mR;
+  const X = v => mL + (v - lo) / (hi - lo) * px;
+
+  rows.forEach(([name, r, accent], ri) => {
+    const top = 24 + ri * (rowH + gap), bot = top + rowH - 22;
+    const g = el("g", {});
+
+    /* title + accent rule, kept outside the plotting area */
+    g.appendChild(el("rect", { x: mL, y: top - 15, width: 22, height: 3, fill: accent, rx: 1.5 }));
+    g.appendChild(el("text", { x: mL + 29, y: top - 11, "font-size": 11, "font-weight": 600, fill: "var(--ink)" }, name));
+    g.appendChild(el("text", { x: W - mR, y: top - 11, "text-anchor": "end", "font-size": 11, fill: "var(--ink-2)" },
+      "AUROC " + r.auroc.toFixed(3)));
+
+    g.appendChild(el("rect", { x: mL, y: top, width: px, height: bot - top, fill: "var(--panel-sunk)", rx: 4 }));
+
+    /* densities */
+    const M = 180;
+    let peak = 0;
+    const c0 = [], c1 = [];
+    for (let i = 0; i <= M; i++) {
+      const v = lo + (hi - lo) * i / M;
+      const p0 = pdf(v, r.m0, r.s0), p1 = pdf(v, r.m1, r.s1);
+      c0.push(p0); c1.push(p1); peak = Math.max(peak, p0, p1);
+    }
+    const Yd = p => bot - (p / peak) * (bot - top - 8);
+    function path(cs, fill, stroke, op) {
+      let dd = "M " + X(lo).toFixed(1) + " " + bot.toFixed(1);
+      for (let i = 0; i <= M; i++) dd += " L " + X(lo + (hi - lo) * i / M).toFixed(1) + " " + Yd(cs[i]).toFixed(1);
+      dd += " L " + X(hi).toFixed(1) + " " + bot.toFixed(1) + " Z";
+      g.appendChild(el("path", { d: dd, fill, opacity: op }));
+      g.appendChild(el("path", { d: dd, fill: "none", stroke, "stroke-width": 1.6, "stroke-linejoin": "round" }));
+    }
+    path(c0, "var(--known)", "var(--known)", 0.20);
+    path(c1, "var(--novel)", "var(--novel)", 0.28);
+
+    /* mean markers + direct labels (relief for the light-mode contrast warn) */
+    /* when the two means nearly coincide (AUROC near 0.5) stack the labels */
+    const tight = Math.abs(X(r.m1) - X(r.m0)) < 52;
+    [[r.m0, "var(--known)", "S_T,0"], [r.m1, "var(--novel)", "S_T,1"]].forEach(([m, col, lab], k) => {
+      g.appendChild(el("line", { x1: X(m), y1: top + 4, x2: X(m), y2: bot, stroke: col, "stroke-width": 1.4, "stroke-dasharray": "3 3" }));
+      g.appendChild(el("text", {
+        x: X(m) + (tight ? 5 : (k ? 5 : -5)),
+        y: top + 13 + (tight && k ? 12 : 0),
+        "text-anchor": tight ? "start" : (k ? "start" : "end"),
+        "font-size": 9.5, "font-weight": 600, fill: col
+      }, lab));
+    });
+
+    /* verdict arrow: which group sits higher */
+    const wrong = r.m1 < r.m0;
+    g.appendChild(el("text", {
+      x: mL + px / 2, y: bot + 15, "text-anchor": "middle", "font-size": 9.5,
+      fill: wrong ? "var(--dd)" : "var(--ink-3)", "font-weight": wrong ? 600 : 400
+    }, wrong ? "S_T,1 scores LOWER than S_T,0 : the ranking is inverted"
+            : "S_T,1 scores higher than S_T,0"));
+
+    g.appendChild(el("line", { x1: mL, y1: bot, x2: mL + px, y2: bot, stroke: "var(--rule-strong)" }));
+    svg.appendChild(g);
+
+    /* hover layer */
+    const hit = el("rect", { x: mL, y: top, width: px, height: bot - top, fill: "transparent" });
+    hit.addEventListener("mousemove", e => {
+      const bb = svg.getBoundingClientRect();
+      const v = lo + ((e.clientX - bb.left) / bb.width * W - mL) / px * (hi - lo);
+      showTip(e, name + "<br>score " + v.toFixed(3) +
+        "<br>P(known &gt; here) " + Q((v - r.m0) / r.s0).toFixed(3) +
+        "<br>P(novel &gt; here) " + Q((v - r.m1) / r.s1).toFixed(3));
+    });
+    hit.addEventListener("mouseleave", hideTip);
+    svg.appendChild(hit);
+  });
+
+  svg.appendChild(el("text", { x: W / 2, y: H - 3, "text-anchor": "middle", "font-size": 9.5, fill: "var(--ink-2)" },
+    "novelty score  h(x) = wᵀx  →"));
+}
+
+/* ==================================================================
+   8. PANEL 3 - ROC
+   ================================================================== */
+function drawRoc(R) {
+  const svg = $("roc"); clear(svg);
+  const W = 300, H = 300, m = 34, p = W - m - 12;
+  const X = v => m + v * p, Y = v => H - m - v * p;
+  svg.appendChild(el("rect", { x: m, y: H - m - p, width: p, height: p, fill: "var(--panel-sunk)", rx: 4 }));
+  for (let i = 1; i < 5; i++) {
+    svg.appendChild(el("line", { x1: X(i / 5), y1: Y(0), x2: X(i / 5), y2: Y(1), stroke: "var(--rule)", "stroke-width": 1 }));
+    svg.appendChild(el("line", { x1: X(0), y1: Y(i / 5), x2: X(1), y2: Y(i / 5), stroke: "var(--rule)", "stroke-width": 1 }));
+  }
+  svg.appendChild(el("line", { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), stroke: "var(--rule-strong)", "stroke-width": 1.2, "stroke-dasharray": "4 4" }));
+
+  [[R.DD, css("--dd"), "6 4"], [R.CO, css("--color"), "0"]].forEach(([r, col, dash]) => {
+    let d = "";
+    const M = 220;
+    for (let i = 0; i <= M; i++) {
+      const t = r.m0 + r.s0 * (6 - 12 * i / M) * 1.2;
+      const fpr = Q((t - r.m0) / r.s0), tpr = Q((t - r.m1) / r.s1);
+      d += (i ? " L " : "M ") + X(fpr).toFixed(1) + " " + Y(tpr).toFixed(1);
+    }
+    svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-dasharray": dash, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  });
+
+  [0, 0.5, 1].forEach(v => {
+    svg.appendChild(axisText(X(v), H - m + 14, v.toFixed(1), "middle", 9.5));
+    svg.appendChild(axisText(m - 7, Y(v) + 3.5, v.toFixed(1), "end", 9.5));
+  });
+  svg.appendChild(axisText(m + p / 2, H - 6, "false positive rate", "middle", 10, "var(--ink-2)"));
+  const yl = axisText(11, H - m - p / 2, "true positive rate", "middle", 10, "var(--ink-2)");
+  yl.setAttribute("transform", "rotate(-90 11 " + (H - m - p / 2) + ")"); svg.appendChild(yl);
+
+  svg.appendChild(el("text", { x: X(0.97), y: Y(0.10), "text-anchor": "end", "font-size": 10.5, "font-weight": 600, fill: "var(--dd)" }, R.DD.auroc.toFixed(3)));
+  svg.appendChild(el("text", { x: X(0.97), y: Y(0.20), "text-anchor": "end", "font-size": 10.5, "font-weight": 600, fill: "var(--color)" }, R.CO.auroc.toFixed(3)));
+}
+
+/* ==================================================================
+   9. PANEL 4 - weight budget
+   ================================================================== */
+function drawBudget(R) {
+  const svg = $("budget"); clear(svg);
+  const W = 300, H = 300, mL = 92, mR = 42, mT = 12, mB = 34;
+  const px = W - mL - mR;
+  const groups = [
+    ["⟨w, μ̂⟩", "background shift", Math.abs(R.DD.wMu), Math.abs(R.CO.wMu)],
+    ["⟨w, η̂⟩", "novel class", Math.abs(R.DD.wEta), Math.abs(R.CO.wEta)],
+    ["‖w_ξ‖", "noise vectors ξ", R.DD.memo, R.CO.memo]
+  ];
+  const maxv = Math.max(...groups.flatMap(g => [g[2], g[3]])) * 1.16 || 1;
+  const X = v => mL + v / maxv * px;
+  const gh = (H - mT - mB) / groups.length;
+  const fmt = v => maxv < 20 ? v.toFixed(1) : v.toFixed(0);
+
+  for (let i = 0; i <= 4; i++) {
+    const v = maxv * i / 4;
+    svg.appendChild(el("line", { x1: X(v), y1: mT, x2: X(v), y2: H - mB, stroke: "var(--rule)", "stroke-width": 1 }));
+    svg.appendChild(axisText(X(v), H - mB + 14, fmt(v), "middle", 9));
+  }
+
+  groups.forEach((g, gi) => {
+    const top = mT + gi * gh;
+    svg.appendChild(el("text", { x: mL - 8, y: top + gh / 2 - 5, "text-anchor": "end", "font-size": 9.5, fill: "var(--ink-2)" }, g[0]));
+    svg.appendChild(el("text", { x: mL - 8, y: top + gh / 2 + 6, "text-anchor": "end", "font-size": 9, fill: "var(--ink-3)" }, g[1]));
+    [[g[2], css("--dd"), "w_DD"], [g[3], css("--color"), "w_color"]].forEach(([v, col, nm], bi) => {
+      const bh = 13, by = top + gh / 2 - 15 + bi * (bh + 2);
+      const wpx = Math.max(X(v) - mL, 1.5);
+      svg.appendChild(el("rect", { x: mL, y: by, width: wpx, height: bh, fill: col, rx: 3 }));
+      svg.appendChild(el("text", { x: mL + wpx + 5, y: by + bh - 3, "font-size": 9, fill: "var(--ink-2)" }, v.toFixed(2)));
+      const hit = el("rect", { x: mL, y: by - 1, width: px, height: bh + 2, fill: "transparent" });
+      hit.addEventListener("mousemove", e => showTip(e, nm + "<br>" + g[0] + " : " + g[1] + "<br><b>" + v.toFixed(3) + "</b>"));
+      hit.addEventListener("mouseleave", hideTip);
+      svg.appendChild(hit);
+    });
+  });
+  svg.appendChild(axisText(mL + px / 2, H - 5, "|component of w| · w_ξ : part of w along the ξ_i", "middle", 8.5, "var(--ink-2)"));
+}
+
+/* ==================================================================
+   10. PANEL 5 - sweep (progressive, one point per frame)
+   ================================================================== */
+let sweepData = [], sweepJob = null;
+const SWEEP_STEPS = 15, SWEEP_ITERS = 55;
+
+function startSweep() {
+  const k = KNOBS.find(x => x.key === sel.value);
+  $("sweep-title").textContent = "AUROC vs " + k.name.toLowerCase();
+  $("sweep-note").textContent = "Re-solving both rules across the range of “" + k.name.toLowerCase() + "”. The ring marks your current setting.";
+  if (sweepJob) clearTimeout(sweepJob);
+  sweepData = []; drawSweep(k);
+  let i = 0;
+  const [a0, a1] = k.sweep;
+  const step = () => {
+    if (i >= SWEEP_STEPS) { sweepJob = null; $("sweep-status").textContent = ""; drawSweep(k); return; }
+    const t = SWEEP_STEPS === 1 ? 0 : i / (SWEEP_STEPS - 1);
+    let v = lerpK(k, a0, a1, t);
+    if (k.int) v = Math.round(v);
+    const p = Object.assign({}, S, { [k.key]: v });
+    if (p.NS + p.NT + 80 > p.d) p.d = Math.min(4000, p.NS + p.NT + 200);
+    try {
+      const r = solveBoth(p, SWEEP_ITERS);
+      sweepData.push({ v, dd: r.DD.auroc, co: r.CO.auroc });
+    } catch (err) { /* skip an infeasible point rather than kill the sweep */ }
+    i++;
+    $("sweep-status").textContent = i + "/" + SWEEP_STEPS;
+    drawSweep(k);
+    sweepJob = setTimeout(step, 0);
+  };
+  sweepJob = setTimeout(step, 0);
+}
+
+function drawSweep(k) {
+  const svg = $("sweep"); clear(svg);
+  const W = 300, H = 300, mL = 34, mR = 12, mT = 12, mB = 40;
+  const px = W - mL - mR, py = H - mT - mB;
+  const [a0, a1] = k.sweep;
+  const X = k.log
+    ? v => mL + Math.log(Math.max(v, a0 * 1e-6) / a0) / Math.log(a1 / a0) * px
+    : v => mL + (v - a0) / (a1 - a0) * px;
+  const Y = v => mT + (1 - v) * py;
+
+  svg.appendChild(el("rect", { x: mL, y: mT, width: px, height: py, fill: "var(--panel-sunk)", rx: 4 }));
+  [[0.5, "chance"], [0.9, "0.90"]].forEach(([v, lab]) => {
+    svg.appendChild(el("line", { x1: mL, y1: Y(v), x2: mL + px, y2: Y(v), stroke: "var(--rule-strong)", "stroke-width": 1, "stroke-dasharray": "4 4" }));
+    svg.appendChild(axisText(mL + px - 2, Y(v) - 3, lab, "end", 8.5));
+  });
+  [0, 0.5, 1].forEach(v => svg.appendChild(axisText(mL - 6, Y(v) + 3.5, v.toFixed(1), "end", 9.5)));
+  [a0, lerpK(k, a0, a1, 0.5), a1].forEach(v => svg.appendChild(axisText(X(v), H - mB + 14, k.fmt(v), "middle", 9)));
+  svg.appendChild(axisText(mL + px / 2, H - 14, k.name.toLowerCase() + (k.log ? "  (log scale)" : ""), "middle", 9.5, "var(--ink-2)"));
+  svg.appendChild(axisText(11, mT + py / 2, "AUROC", "middle", 9.5, "var(--ink-2)")).setAttribute("transform", "rotate(-90 11 " + (mT + py / 2) + ")");
+
+  if (sweepData.length > 1) {
+    [["dd", css("--dd"), "6 4"], ["co", css("--color"), "0"]].forEach(([f, col, dash]) => {
+      let d = "";
+      sweepData.forEach((p, i) => { d += (i ? " L " : "M ") + X(p.v).toFixed(1) + " " + Y(p[f]).toFixed(1); });
+      svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-dasharray": dash, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    });
+  }
+  /* current setting */
+  const cur = S[k.key];
+  if (cur >= Math.min(a0, a1) && cur <= Math.max(a0, a1) && LAST) {
+    svg.appendChild(el("line", { x1: X(cur), y1: mT, x2: X(cur), y2: mT + py, stroke: "var(--ink-3)", "stroke-width": 1 }));
+    [[LAST.DD.auroc, css("--dd")], [LAST.CO.auroc, css("--color")]].forEach(([v, col]) => {
+      svg.appendChild(el("circle", { cx: X(cur), cy: Y(v), r: 4.5, fill: "var(--panel)", stroke: col, "stroke-width": 2 }));
+    });
+  }
+  /* hover */
+  const hit = el("rect", { x: mL, y: mT, width: px, height: py, fill: "transparent" });
+  hit.addEventListener("mousemove", e => {
+    if (!sweepData.length) return;
+    const bb = svg.getBoundingClientRect();
+    const v = a0 + ((e.clientX - bb.left) / bb.width * W - mL) / px * (a1 - a0);
+    let best = sweepData[0];
+    sweepData.forEach(p => { if (Math.abs(p.v - v) < Math.abs(best.v - v)) best = p; });
+    showTip(e, k.name + " " + k.fmt(best.v) + "<br>w_DD <b>" + best.dd.toFixed(3) + "</b><br>w_color <b>" + best.co.toFixed(3) + "</b>");
+  });
+  hit.addEventListener("mouseleave", hideTip);
+  svg.appendChild(hit);
+}
+
+/* ==================================================================
+   10b. REGIME MAP - measured effect vs the theorem's admissible region
+   ------------------------------------------------------------------
+   Axes are (r_mu, r_eta) on log scales, because the two live orders of magnitude
+   apart. The heatmap depends only on (N_S, N_T, alpha, d, seed) - r_mu and r_eta
+   ARE the axes - so moving those two sliders only moves the "you are here" ring.
+   ================================================================== */
+const MAP_NX = 8, MAP_NY = 8, MAP_ITERS = 45;
+const MAP_X = [0.005, 300], MAP_Y = [0.005, 30];
+let mapCells = [], mapJob = null, mapKey = "";
+
+function mapPos(v, rng) { return Math.log(v / rng[0]) / Math.log(rng[1] / rng[0]); }
+
+function startMap() {
+  const k = [S.NS, S.NT, S.alpha, S.d, S.seed].join("|");
+  if (k === mapKey && mapCells.length === MAP_NX * MAP_NY) { drawRegime(); return; }
+  mapKey = k;
+  if (mapJob) clearTimeout(mapJob);
+  mapCells = []; drawRegime();
+  const kMu = KNOBS.find(x => x.key === "rMu"), kEta = KNOBS.find(x => x.key === "rEta");
+  let i = 0;
+  const step = () => {
+    if (i >= MAP_NX * MAP_NY) { mapJob = null; $("regime-status").textContent = ""; drawRegime(); return; }
+    const ix = i % MAP_NX, iy = (i / MAP_NX) | 0;
+    const rm = kMu.min * Math.pow(kMu.max / kMu.min, (ix + 0.5) / MAP_NX);
+    const re = kEta.min * Math.pow(kEta.max / kEta.min, (iy + 0.5) / MAP_NY);
+    try {
+      const r = solveBoth(Object.assign({}, S, { rMu: rm, rEta: re }), MAP_ITERS);
+      mapCells.push({ ix, iy, rm, re, gap: r.CO.auroc - r.DD.auroc, dd: r.DD.auroc, co: r.CO.auroc });
+    } catch (err) { /* skip */ }
+    i++;
+    $("regime-status").textContent = i + "/" + (MAP_NX * MAP_NY);
+    if (i % 4 === 0 || i === MAP_NX * MAP_NY) drawRegime();
+    mapJob = setTimeout(step, 0);
+  };
+  mapJob = setTimeout(step, 0);
+}
+
+function drawRegime() {
+  const svg = $("regime"); clear(svg);
+  const W = 330, H = 300, mL = 40, mR = 12, mT = 12, mB = 42;
+  const px = W - mL - mR, py = H - mT - mB;
+  const X = v => mL + mapPos(v, MAP_X) * px;
+  const Y = v => mT + (1 - mapPos(v, MAP_Y)) * py;
+  svg.appendChild(el("rect", { x: mL, y: mT, width: px, height: py, fill: "var(--panel-sunk)", rx: 4 }));
+
+  /* ---- measured layer: diverging blue (CoLOR ahead) <-> red, grey midpoint ---- */
+  const kMu = KNOBS.find(x => x.key === "rMu"), kEta = KNOBS.find(x => x.key === "rEta");
+  const cellX = i => kMu.min * Math.pow(kMu.max / kMu.min, i / MAP_NX);
+  const cellY = i => kEta.min * Math.pow(kEta.max / kEta.min, i / MAP_NY);
+  const mid = css("--panel-sunk");
+  mapCells.forEach(c => {
+    const x0 = X(cellX(c.ix)), x1 = X(cellX(c.ix + 1));
+    const y0 = Y(cellY(c.iy + 1)), y1 = Y(cellY(c.iy));
+    const t = Math.max(-1, Math.min(1, c.gap / 0.6));
+    const col = t >= 0 ? css("--color") : css("--dd");
+    svg.appendChild(el("rect", {
+      x: x0, y: y0, width: Math.max(x1 - x0 - 1, 1), height: Math.max(y1 - y0 - 1, 1),
+      fill: col, opacity: (0.12 + 0.75 * Math.abs(t)).toFixed(3), rx: 1
+    }));
+  });
+
+  /* ---- theory layer: the wedge where (8),(9),(10) all hold ---- */
+  const NT = +$("thNT").value, NS = NT, N = NS + NT, NT1 = 1, NT0 = NT - NT1;
+  const floor = 16 / Math.sqrt(NT);                 /* (8) on both r_mu and r_eta */
+  const muHi  = 0.5 * Math.sqrt(NT0);               /* (9) */
+  const cap   = 1 / (8 * (1 + Math.sqrt(NT * NT1)));
+  const ceil  = rm => cap * rm;                     /* (10), TMLR 05/2026 */
+  const top = [], bot = [];
+  const M = 90;
+  for (let i = 0; i <= M; i++) {
+    const rm = floor * Math.pow(muHi / floor, i / M);
+    const hi = ceil(rm);
+    if (hi > floor) { top.push([X(rm), Y(Math.min(hi, MAP_Y[1]))]); bot.push([X(rm), Y(floor)]); }
+  }
+  if (top.length > 1) {
+    const d = "M " + top.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L ") +
+              " L " + bot.slice().reverse().map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L ") + " Z";
+    svg.appendChild(el("path", { d, fill: "var(--ink)", opacity: 0.06 }));
+    svg.appendChild(el("path", { d, fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.6, "stroke-linejoin": "round" }));
+    const apex = top[top.length - 1];
+    svg.appendChild(el("text", { x: apex[0], y: apex[1] - 7, "text-anchor": "end", "font-size": 9,
+      "font-weight": 600, fill: "var(--ink-2)" }, "Thm 2 (8)–(10)"));
+  } else {
+    svg.appendChild(el("text", { x: mL + px / 2, y: mT + 16, "text-anchor": "middle", "font-size": 9.5,
+      fill: "var(--ink-3)" }, "theorem region empty at this N_T"));
+  }
+
+  /* ---- you are here ---- */
+  const cx = X(Math.max(MAP_X[0], Math.min(MAP_X[1], S.rMu)));
+  const cy = Y(Math.max(MAP_Y[0], Math.min(MAP_Y[1], S.rEta)));
+  svg.appendChild(el("circle", { cx, cy, r: 5.5, fill: "none", stroke: "var(--ink)", "stroke-width": 2 }));
+  svg.appendChild(el("circle", { cx, cy, r: 1.6, fill: "var(--ink)" }));
+  svg.appendChild(el("text", { x: cx, y: cy - 10, "text-anchor": "middle", "font-size": 9,
+    "font-weight": 600, fill: "var(--ink)" }, "you are here"));
+
+  /* ---- axes ---- */
+  [0.01, 1, 100].forEach(v => svg.appendChild(axisText(X(v), H - mB + 14, v < 1 ? String(v) : String(v), "middle", 9)));
+  [0.01, 1, 10].forEach(v => svg.appendChild(axisText(mL - 6, Y(v) + 3.5, String(v), "end", 9)));
+  svg.appendChild(axisText(mL + px / 2, H - mB + 30, "background shift  ‖μ‖   (log)", "middle", 9.5, "var(--ink-2)"));
+  svg.appendChild(axisText(11, mT + py / 2, "novelty  ‖η‖   (log)", "middle", 9.5, "var(--ink-2)"))
+     .setAttribute("transform", "rotate(-90 11 " + (mT + py / 2) + ")");
+
+  /* hover */
+  const hit = el("rect", { x: mL, y: mT, width: px, height: py, fill: "transparent" });
+  hit.addEventListener("mousemove", e => {
+    if (!mapCells.length) return;
+    const bb = svg.getBoundingClientRect();
+    const fx = ((e.clientX - bb.left) / bb.width * W - mL) / px, fy = 1 - ((e.clientY - bb.top) / bb.height * H - mT) / py;
+    const rm = MAP_X[0] * Math.pow(MAP_X[1] / MAP_X[0], fx), re = MAP_Y[0] * Math.pow(MAP_Y[1] / MAP_Y[0], fy);
+    let best = null, bd = Infinity;
+    mapCells.forEach(c => {
+      const dd = Math.pow(Math.log(c.rm / rm), 2) + Math.pow(Math.log(c.re / re), 2);
+      if (dd < bd) { bd = dd; best = c; }
+    });
+    if (!best) return;
+    showTip(e, "‖μ‖ " + best.rm.toFixed(3) + " · ‖η‖ " + best.re.toFixed(3) +
+      "<br>discriminator <b>" + best.dd.toFixed(3) + "</b><br>w_color <b>" + best.co.toFixed(3) +
+      "</b><br>gap " + (best.gap >= 0 ? "+" : "") + best.gap.toFixed(3));
+  });
+  hit.addEventListener("mouseleave", hideTip);
+  svg.appendChild(hit);
+}
+
+/* ==================================================================
+   11. TEXT READOUTS
+   ================================================================== */
+function drawText(R) {
+  const dd = R.DD.auroc, co = R.CO.auroc;
+  $("fig-dd").textContent = dd.toFixed(3);
+  $("fig-co").textContent = co.toFixed(3);
+  $("fig-gap").textContent = (co - dd >= 0 ? "+" : "") + (co - dd).toFixed(3);
+  $("dtxt").textContent = S.d; $("dtxt2").textContent = S.d - 2; $("dnoise").textContent = S.d - 2;
+
+  const ratio = Math.abs(R.DD.wMu) / (Math.abs(R.CO.wMu) || 1e-9);
+  const both = dd < 0.5 && co > 0.9;
+  let msg;
+  if (both) {
+    msg = "<b>Theorem 1's regime.</b> The discriminator is below chance while CoLOR clears 0.90. " +
+          "Both rules hold the novel direction at about the same strength (" +
+          Math.abs(R.DD.wEta).toFixed(2) + " vs " + Math.abs(R.CO.wEta).toFixed(2) +
+          "), but the discriminator leans <b>" + ratio.toFixed(1) + "×</b> harder on the background-shift direction.";
+  } else if (co - dd > 0.15) {
+    msg = "CoLOR is well ahead, though not both thresholds at once. The discriminator is leaning <b>" +
+          ratio.toFixed(1) + "×</b> harder on the background-shift direction than CoLOR, while carrying " +
+          "essentially the same novel-class signal.";
+  } else if (co - dd > 0.02) {
+    msg = "A modest edge for CoLOR. Turn the background shift up, or the novel-class distinctiveness down, " +
+          "to make the discriminator's forced margin expensive enough to matter.";
+  } else {
+    msg = "No real separation here : the novel direction is cheap enough that both rules simply buy it. " +
+          "The trap needs a background shift large enough that the discriminator's margin on the training set costs something.";
+  }
+  $("verdict-txt").innerHTML = msg;
+
+  const rows = [
+    ["AUROC (Lemma 2)", dd.toFixed(4), co.toFixed(4)],
+    ["⟨w, μ̂⟩  background", R.DD.wMu.toFixed(3), R.CO.wMu.toFixed(3)],
+    ["⟨w, η̂⟩  novel", R.DD.wEta.toFixed(3), R.CO.wEta.toFixed(3)],
+    ["memorised noise mass", R.DD.memo.toFixed(3), R.CO.memo.toFixed(3)],
+    ["‖w‖", R.DD.wNorm.toFixed(3), R.CO.wNorm.toFixed(3)],
+    ["mean score, known", R.DD.m0.toFixed(3), R.CO.m0.toFixed(3)],
+    ["mean score, novel", R.DD.m1.toFixed(3), R.CO.m1.toFixed(3)]
+  ];
+  $("numtable").innerHTML = rows.map(r =>
+    "<tr><td>" + r[0] + "</td><td class='n'>" + r[1] + "</td><td class='n'>" + r[2] + "</td></tr>").join("");
+
+  /* Theorem 1 conditions, eq. (8)-(9) */
+  const N = S.NS + S.NT, NT1 = Math.max(1, Math.round(S.alpha * S.NT)), NT0 = S.NT - NT1;
+  const aMax = N / (1024 * S.NT), aMin = 1 / S.NT;
+  const cap10 = 1 / (8 * (1 + Math.sqrt(S.NT * NT1)));   /* (10), TMLR 05/2026 */
+  const C = [
+    ["(8) min{r_η, r_μ} ≥ 16/√N_T", Math.min(S.rEta, S.rMu) >= 16 / Math.sqrt(S.NT),
+      Math.min(S.rEta, S.rMu).toFixed(2) + " vs " + (16 / Math.sqrt(S.NT)).toFixed(2)],
+    ["(9) r_μ ≤ ½√N_T,0", S.rMu <= 0.5 * Math.sqrt(NT0),
+      S.rMu.toFixed(2) + " vs " + (0.5 * Math.sqrt(NT0)).toFixed(2)],
+    ["(10) r_η/r_μ ≤ 1/(8(1+√(N_T·N_T,1)))", (S.rEta / S.rMu) <= cap10,
+      (S.rEta / S.rMu).toFixed(4) + " vs " + cap10.toFixed(6)],
+    ["(11) d/N and N large enough", S.d > N, "d/N = " + (S.d / N).toFixed(2)],
+    ["α ∈ [1/N_T, N/(1024·N_T))", S.alpha >= aMin && S.alpha < aMax,
+      (100 * S.alpha).toFixed(1) + "% vs [" + (100 * aMin).toFixed(2) + "%, " + (100 * aMax).toFixed(2) + "%)"],
+    ["N_S ≥ N_T,  N_T > 10,  d > 300", S.NS >= S.NT && S.NT > 10 && S.d > 300,
+      S.NS + " ≥ " + S.NT]
+  ];
+  $("conds").innerHTML = C.map(c =>
+    '<div class="cond-item"><span class="mark ' + (c[1] ? "ok" : "no") + '">' + (c[1] ? "✓" : "✕") +
+    '</span><span class="lbl num">' + c[0] + '</span><span class="v">' + c[2] + '</span></div>').join("");
+}
+
+/* ==================================================================
+   12. ORCHESTRATION
+   ================================================================== */
+let LAST = null, pending = false, rafId = null;
+
+function recompute() {
+  clampD();
+  LAST = solveBoth(S, 90);
+  drawBothGeo(LAST); drawStrips(LAST); drawRoc(LAST); drawBudget(LAST); drawText(LAST);
+  drawSweep(KNOBS.find(x => x.key === sel.value));
+  drawRegime();
+  document.querySelectorAll(".plot").forEach(p => p.classList.remove("busy"));
+}
+function schedule() {
+  if (pending) return;
+  pending = true;
+  document.querySelectorAll(".plot").forEach(p => p.classList.add("busy"));
+  rafId = requestAnimationFrame(() => { pending = false; recompute(); });
+}
+
+KNOBS.forEach(k => {
+  $("i-" + k.key).addEventListener("input", e => {
+    S[k.key] = fromPos(k, parseFloat(e.target.value));
+    clampD(); syncRail(); schedule();
+  });
+  $("i-" + k.key).addEventListener("change", () => { if (!playing) { startSweep(); startMap(); } });
+});
+sel.addEventListener("change", () => { syncRail(); startSweep(); });
+$("resample").addEventListener("click", () => { S.seed = (S.seed * 7919 + 13) % 100000; recompute(); startSweep(); startMap(); });
+$("reset").addEventListener("click", () => { S = Object.assign({}, DEF); sel.value = "rEta"; syncRail(); recompute(); startSweep(); startMap(); });
+
+/* ==================================================================
+   13. ANIMATION FOR SCREEN RECORDING
+   ------------------------------------------------------------------
+   Solving is ~100 ms, so animating live would run at ~10 fps and record
+   badly. Instead: render every frame up front (with a progress readout),
+   then play the cached frames back at full rate, ping-ponging so a capture
+   loops cleanly.
+   ================================================================== */
+const PLAY_FRAMES = 56;
+let playing = false, playJob = null, playCancel = false, playRestore = null;
+
+function setPlayLabel(t, primary) {
+  const b = $("play");
+  b.textContent = t;
+  b.classList.toggle("primary", !!primary);
+}
+
+$("play").addEventListener("click", async () => {
+  if (playing) {
+    playing = false; playCancel = true;
+    if (playJob) cancelAnimationFrame(playJob);
+    setPlayLabel("Sweep it ▸", true);
+    S = Object.assign({}, S, playRestore || {}); syncRail(); recompute(); startSweep();
+    return;
+  }
+  playing = true; playCancel = false;
+  if (sweepJob) { clearTimeout(sweepJob); sweepJob = null; }
+
+  const k = KNOBS.find(x => x.key === sel.value);
+  const [a0, a1] = k.sweep;
+  playRestore = { [k.key]: S[k.key], d: S.d };
+
+  /* --- pass 1: render every frame, yielding to the browser between them --- */
+  const frames = [];
+  for (let f = 0; f < PLAY_FRAMES; f++) {
+    if (playCancel) { playing = false; return; }
+    setPlayLabel("Rendering " + Math.round(100 * f / PLAY_FRAMES) + "%");
+    const t = f / (PLAY_FRAMES - 1);
+    let v = lerpK(k, a0, a1, t);
+    if (k.int) v = Math.round(v / k.step) * k.step;
+    const p = Object.assign({}, S, { [k.key]: v });
+    if (p.NS + p.NT + 80 > p.d) p.d = Math.min(4000, p.NS + p.NT + 200);
+    try { frames.push({ v, p, R: solveBoth(p, 70) }); } catch (err) { /* skip */ }
+    await new Promise(r => setTimeout(r, 0));
+  }
+  if (playCancel || !frames.length) { playing = false; setPlayLabel("Sweep it ▸", true); return; }
+
+  /* the sweep panel gets the same numbers, at full resolution */
+  sweepData = frames.map(fr => ({ v: fr.v, dd: fr.R.DD.auroc, co: fr.R.CO.auroc }));
+  $("sweep-status").textContent = "";
+  setPlayLabel("Stop ■");
+
+  /* --- pass 2: play back, ping-pong --- */
+  let i = 0, dir = 1, hold = 0;
+  const tick = () => {
+    if (!playing) return;
+    if (hold > 0) { hold--; playJob = requestAnimationFrame(tick); return; }
+    const fr = frames[i];
+    S[k.key] = fr.v; S.d = fr.p.d; syncRail();
+    LAST = fr.R;
+    drawBothGeo(LAST); drawStrips(LAST); drawRoc(LAST); drawBudget(LAST); drawText(LAST); drawSweep(k);
+    i += dir;
+    if (i >= frames.length) { i = frames.length - 1; dir = -1; hold = 30; }
+    else if (i < 0) { i = 0; dir = 1; hold = 30; }
+    playJob = requestAnimationFrame(tick);
+  };
+  playJob = requestAnimationFrame(tick);
+});
+
+$("thNT").addEventListener("input", e => {
+  $("thNTv").textContent = (+e.target.value).toLocaleString();
+  drawRegime();
+});
+
+/* boot - render a real result immediately, then fill the sweep and the map in */
+syncRail();
+recompute();
+startSweep();
+setTimeout(startMap, 400);
+})();
+</script>
+
+</body>
+</html>
